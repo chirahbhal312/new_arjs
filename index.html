@@ -1,9 +1,40 @@
-<!doctype html>
-<html>
-    <head>
-    <title>WebXR Plane Detection</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script type="module" src="app.js"></script>
-  </head>
-  <body style="margin: 0; overflow: hidden;"></body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AR Model Placement</title>
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background: #f0f0f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    model-viewer {
+      width: 100%;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+
+<model-viewer
+  src="/realistic_bloodhound_dog_3d_model.glb"
+  ar
+  ar-placement="floor"
+  ar-modes="scene-viewer webxr quick-look"
+  camera-controls
+  auto-rotate
+  alt="A 3D model"
+  exposure="1"
+  shadow-intensity="1"
+  environment-image="neutral"
+  disable-zoom>
+</model-viewer>
+
+</body>
 </html>
