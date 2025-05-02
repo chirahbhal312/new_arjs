@@ -2,144 +2,103 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>AR Placement</title>
+  <title>WebXR AR with Three.js Ground Detection</title>
   <style>
-    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
-    button {
-      position: absolute;
-      z-index: 10;
-      padding: 10px;
-      font-size: 16px;
-    }
-    #start-ar { top: 20px; left: 20px; }
-    #dog-btn { top: 70px; left: 20px; display: none; }
-    #cat-btn { top: 120px; left: 20px; display: none; }
+    html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; }
+    canvas { display: block; }
+    #enter-ar { position: absolute; top: 20px; left: 20px; z-index: 10; }
   </style>
 </head>
 <body>
-  <button id="start-ar">Enter AR</button>
-  <button id="dog-btn">Dog</button>
-  <button id="cat-btn">Cat</button>
-
+  <button id="enter-ar">Enter AR</button>
   <script type="module">
     import * as THREE from 'https://cdn.skypack.dev/three@0.152.2';
-    import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.152.2/examples/jsm/loaders/GLTFLoader.js';
 
-    let scene, camera, renderer, controller, reticle;
-    let hitTestSource = null;
-    let hitTestSourceRequested = false;
-    let currentSelection = null;
-    const modelCache = new Map();
+    const button = document.getElementById('enter-ar');
 
-    const startBtn = document.getElementById('start-ar');
-    const dogBtn = document.getElementById('dog-btn');
-    const catBtn = document.getElementById('cat-btn');
+    let scene, camera, renderer;
+    let xrSession, refSpace, viewerSpace, hitTestSource;
+    let reticle;
+    let controller;
 
-    initScene();
+    initThree();
 
-    startBtn.addEventListener('click', activateXR);
-    dogBtn.addEventListener('click', () => currentSelection = 'dog');
-    catBtn.addEventListener('click', () => currentSelection = 'cat');
+    button.addEventListener('click', async () => {
+      if (navigator.xr) {
+        xrSession = await navigator.xr.requestSession('immersive-ar', {
+          requiredFeatures: ['hit-test', 'local-floor']
+        });
 
-    function initScene() {
+        renderer.xr.enabled = true;
+        await renderer.xr.setSession(xrSession);
+
+        refSpace = await xrSession.requestReferenceSpace('local-floor');
+        viewerSpace = await xrSession.requestReferenceSpace('viewer');
+
+        hitTestSource = await xrSession.requestHitTestSource({ space: viewerSpace });
+
+        controller = renderer.xr.getController(0);
+        controller.addEventListener('select', onSelect);
+        scene.add(controller);
+
+        renderer.setAnimationLoop(onXRFrame);
+      } else {
+        alert("WebXR not supported");
+      }
+    });
+
+    function initThree() {
       scene = new THREE.Scene();
+
       camera = new THREE.PerspectiveCamera();
 
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
-      renderer.xr.enabled = true;
       document.body.appendChild(renderer.domElement);
 
       const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
       scene.add(light);
 
-      const geometry = new THREE.RingGeometry(0.05, 0.06, 32).rotateX(-Math.PI / 2);
-      const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-      reticle = new THREE.Mesh(geometry, material);
+      // Reticle for hit test result
+      const ringGeo = new THREE.RingGeometry(0.08, 0.1, 32).rotateX(-Math.PI / 2);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+      reticle = new THREE.Mesh(ringGeo, ringMat);
       reticle.matrixAutoUpdate = false;
       reticle.visible = false;
       scene.add(reticle);
-
-      controller = renderer.xr.getController(0);
-      controller.addEventListener('select', onSelect);
-      scene.add(controller);
-    }
-
-    async function activateXR() {
-      const session = await navigator.xr.requestSession('immersive-ar', {
-        requiredFeatures: ['hit-test', 'local-floor']
-      });
-
-      renderer.xr.setSession(session);
-      const referenceSpace = await session.requestReferenceSpace('local-floor');
-      const viewerSpace = await session.requestReferenceSpace('viewer');
-      hitTestSource = await session.requestHitTestSource({ space: viewerSpace });
-
-      session.addEventListener('end', () => {
-        hitTestSourceRequested = false;
-        hitTestSource = null;
-      });
-
-      // Show buttons
-      dogBtn.style.display = 'block';
-      catBtn.style.display = 'block';
-
-      renderer.setAnimationLoop((time, frame) => {
-        if (frame) {
-          const hitTestResults = frame.getHitTestResults(hitTestSource);
-          if (hitTestResults.length > 0) {
-            const hit = hitTestResults[0].getPose(referenceSpace);
-            reticle.visible = true;
-            reticle.matrix.fromArray(hit.transform.matrix);
-          } else {
-            reticle.visible = false;
-          }
-        }
-
-        renderer.render(scene, camera);
-      });
     }
 
     function onSelect() {
-      if (!reticle.visible || !currentSelection) return;
-
-      if (currentSelection === 'dog') {
-        if (modelCache.has('dog')) {
-          const model = modelCache.get('dog').clone();
-          model.position.setFromMatrixPosition(reticle.matrix);
-          model.quaternion.setFromRotationMatrix(reticle.matrix);
-          scene.add(model);
-        } else {
-          const loader = new GLTFLoader();
-          loader.load('./dog.glb', (gltf) => {
-            const model = gltf.scene;
-            modelCache.set('dog', model);
-            const instance = model.clone();
-            instance.position.setFromMatrixPosition(reticle.matrix);
-            instance.quaternion.setFromRotationMatrix(reticle.matrix);
-            scene.add(instance);
-          });
-        }
-      } else if (currentSelection === 'cat') {
-        if (modelCache.has('cat')) {
-          const plane = modelCache.get('cat').clone();
-          plane.position.setFromMatrixPosition(reticle.matrix);
-          plane.quaternion.setFromRotationMatrix(reticle.matrix);
-          scene.add(plane);
-        } else {
-          const loader = new THREE.TextureLoader();
-          loader.load('./cat.png', (texture) => {
-            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-            const geometry = new THREE.PlaneGeometry(0.3, 0.3);
-            const plane = new THREE.Mesh(geometry, material);
-            plane.position.setFromMatrixPosition(reticle.matrix);
-            plane.quaternion.setFromRotationMatrix(reticle.matrix);
-            modelCache.set('cat', plane);
-            scene.add(plane);
-          });
-        }
+      if (reticle.visible) {
+        const boxGeo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+        const boxMat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        const box = new THREE.Mesh(boxGeo, boxMat);
+        box.position.setFromMatrixPosition(reticle.matrix);
+        scene.add(box);
       }
+    }
+
+    function onXRFrame(time, frame) {
+      if (!frame) return;
+
+      const viewerPose = frame.getViewerPose(refSpace);
+      if (!viewerPose) return;
+
+      const hitTestResults = frame.getHitTestResults(hitTestSource);
+      if (hitTestResults.length > 0) {
+        const hit = hitTestResults[0];
+        const pose = hit.getPose(refSpace);
+
+        if (pose) {
+          reticle.visible = true;
+          reticle.matrix.fromArray(pose.transform.matrix);
+        }
+      } else {
+        reticle.visible = false;
+      }
+
+      renderer.render(scene, camera);
     }
   </script>
 </body>
