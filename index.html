@@ -52,11 +52,16 @@
           const hit = results[0];
           const pose = hit.transformationMatrix;
 
-          const cube = BABYLON.MeshBuilder.CreateBox("cube", { size: 0.1 }, scene);
-          cube.material = cubeMaterial;
-          cube.setAbsolutePosition(
-            new BABYLON.Vector3(pose[12], pose[13], pose[14])
-          );
+          const position = new BABYLON.Vector3(pose[12], pose[13], pose[14]);
+
+BABYLON.SceneLoader.ImportMesh("", "https://models.babylonjs.com/", "boombox.glb", scene, function (meshes) {
+  const model = BABYLON.Mesh.MergeMeshes(meshes, true, true, undefined, false, true);
+  if (model) {
+    model.position = position.clone();
+    model.scaling = new BABYLON.Vector3(0.5, 0.5, 0.5); // Adjust scale as needed
+  }
+});
+
         }
       });
 
