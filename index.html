@@ -1,28 +1,105 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>AR Model Placement</title>
-<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
+  <meta charset="UTF-8" />
+  <title>WebXR AR with Three.js Ground Detection</title>
   <style>
-    body {
-      margin: 0;
-      background: #f0f0f0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
-
-    model-viewer {
-      width: 100%;
-      height: 100vh;
-    }
+    html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; }
+    canvas { display: block; }
+    #enter-ar { position: absolute; top: 20px; left: 20px; z-index: 10; }
   </style>
 </head>
 <body>
-<!-- Use it like any other HTML element -->
-<model-viewer alt="Neil Armstrong's Spacesuit from the Smithsonian Digitization Programs Office and National Air and Space Museum" src="./dog.glb" ar environment-image="shared-assets/environments/moon_1k.hdr" shadow-intensity="1" camera-controls touch-action="pan-y"></model-viewer>
+  <button id="enter-ar">Enter AR</button>
+  <script type="module">
+    import * as THREE from 'https://cdn.skypack.dev/three@0.152.2';
 
+    const button = document.getElementById('enter-ar');
+
+    let scene, camera, renderer;
+    let xrSession, refSpace, viewerSpace, hitTestSource;
+    let reticle;
+    let controller;
+
+    initThree();
+
+    button.addEventListener('click', async () => {
+      if (navigator.xr) {
+        xrSession = await navigator.xr.requestSession('immersive-ar', {
+          requiredFeatures: ['hit-test', 'local-floor']
+        });
+
+        renderer.xr.enabled = true;
+        await renderer.xr.setSession(xrSession);
+
+        refSpace = await xrSession.requestReferenceSpace('local-floor');
+        viewerSpace = await xrSession.requestReferenceSpace('viewer');
+
+        hitTestSource = await xrSession.requestHitTestSource({ space: viewerSpace });
+
+        controller = renderer.xr.getController(0);
+        controller.addEventListener('select', onSelect);
+        scene.add(controller);
+
+        renderer.setAnimationLoop(onXRFrame);
+      } else {
+        alert("WebXR not supported");
+      }
+    });
+
+    function initThree() {
+      scene = new THREE.Scene();
+
+      camera = new THREE.PerspectiveCamera();
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      document.body.appendChild(renderer.domElement);
+
+      const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+      scene.add(light);
+
+      // Reticle for hit test result
+      const ringGeo = new THREE.RingGeometry(0.08, 0.1, 32).rotateX(-Math.PI / 2);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+      reticle = new THREE.Mesh(ringGeo, ringMat);
+      reticle.matrixAutoUpdate = false;
+      reticle.visible = false;
+      scene.add(reticle);
+    }
+
+    function onSelect() {
+      if (reticle.visible) {
+        const boxGeo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+        const boxMat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        const box = new THREE.Mesh(boxGeo, boxMat);
+        box.position.setFromMatrixPosition(reticle.matrix);
+        scene.add(box);
+      }
+    }
+
+    function onXRFrame(time, frame) {
+      if (!frame) return;
+
+      const viewerPose = frame.getViewerPose(refSpace);
+      if (!viewerPose) return;
+
+      const hitTestResults = frame.getHitTestResults(hitTestSource);
+      if (hitTestResults.length > 0) {
+        const hit = hitTestResults[0];
+        const pose = hit.getPose(refSpace);
+
+        if (pose) {
+          reticle.visible = true;
+          reticle.matrix.fromArray(pose.transform.matrix);
+        }
+      } else {
+        reticle.visible = false;
+      }
+
+      renderer.render(scene, camera);
+    }
+  </script>
 </body>
 </html>
