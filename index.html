@@ -1,105 +1,77 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <title>WebXR AR with Three.js Ground Detection</title>
+  <meta charset="UTF-8">
+  <title>Babylon.js AR Cube Placer</title>
+  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+  <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+  <script src="https://cdn.babylonjs.com/xr/babylon.webxr.min.js"></script>
   <style>
-    html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; }
-    canvas { display: block; }
-    #enter-ar { position: absolute; top: 20px; left: 20px; z-index: 10; }
+    html, body { margin: 0; overflow: hidden; height: 100%; }
+    canvas { width: 100%; height: 100%; display: block; }
   </style>
 </head>
 <body>
-  <button id="enter-ar">Enter AR</button>
-  <script type="module">
-    import * as THREE from 'https://cdn.skypack.dev/three@0.152.2';
+  <canvas id="renderCanvas"></canvas>
+  <script>
+    const canvas = document.getElementById("renderCanvas");
+    const engine = new BABYLON.Engine(canvas, true);
 
-    const button = document.getElementById('enter-ar');
+    const createScene = async () => {
+      const scene = new BABYLON.Scene(engine);
 
-    let scene, camera, renderer;
-    let xrSession, refSpace, viewerSpace, hitTestSource;
-    let reticle;
-    let controller;
+      const camera = new BABYLON.ArcRotateCamera("camera", Math.PI / 2, Math.PI / 4, 3, BABYLON.Vector3.Zero(), scene);
+      camera.attachControl(canvas, true);
 
-    initThree();
+      const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(1, 1, 0), scene);
 
-    button.addEventListener('click', async () => {
-      if (navigator.xr) {
-        xrSession = await navigator.xr.requestSession('immersive-ar', {
-          requiredFeatures: ['hit-test', 'local-floor']
-        });
+      // Enable WebXR
+      const xrHelper = await scene.createDefaultXRExperienceAsync({
+        uiOptions: {
+          sessionMode: "immersive-ar",
+        },
+        optionalFeatures: true,
+      });
 
-        renderer.xr.enabled = true;
-        await renderer.xr.setSession(xrSession);
+      const featuresManager = xrHelper.baseExperience.featuresManager;
+      const hitTest = featuresManager.enableFeature(
+        BABYLON.WebXRHitTest.Name,
+        "latest",
+        {
+          offsetRay: new BABYLON.Ray(new BABYLON.Vector3(0, 0, 0), new BABYLON.Vector3(0, 0, -1), 10),
+          testOnPointerDownOnly: true,
+        }
+      );
 
-        refSpace = await xrSession.requestReferenceSpace('local-floor');
-        viewerSpace = await xrSession.requestReferenceSpace('viewer');
+      let cubeMaterial = new BABYLON.StandardMaterial("cubeMat", scene);
+      cubeMaterial.diffuseColor = BABYLON.Color3.Red();
 
-        hitTestSource = await xrSession.requestHitTestSource({ space: viewerSpace });
+      hitTest.onHitTestResultObservable.add((results) => {
+        if (results.length) {
+          const hit = results[0];
+          const pose = hit.transformationMatrix;
 
-        controller = renderer.xr.getController(0);
-        controller.addEventListener('select', onSelect);
-        scene.add(controller);
+          const cube = BABYLON.MeshBuilder.CreateBox("cube", { size: 0.1 }, scene);
+          cube.material = cubeMaterial;
+          cube.setAbsolutePosition(
+            new BABYLON.Vector3(pose[12], pose[13], pose[14])
+          );
+        }
+      });
 
-        renderer.setAnimationLoop(onXRFrame);
-      } else {
-        alert("WebXR not supported");
-      }
+      return scene;
+    };
+
+    createScene().then((scene) => {
+      engine.runRenderLoop(() => {
+        scene.render();
+      });
     });
 
-    function initThree() {
-      scene = new THREE.Scene();
-
-      camera = new THREE.PerspectiveCamera();
-
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(window.devicePixelRatio);
-      document.body.appendChild(renderer.domElement);
-
-      const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-      scene.add(light);
-
-      // Reticle for hit test result
-      const ringGeo = new THREE.RingGeometry(0.08, 0.1, 32).rotateX(-Math.PI / 2);
-      const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-      reticle = new THREE.Mesh(ringGeo, ringMat);
-      reticle.matrixAutoUpdate = false;
-      reticle.visible = false;
-      scene.add(reticle);
-    }
-
-    function onSelect() {
-      if (reticle.visible) {
-        const boxGeo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-        const boxMat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-        const box = new THREE.Mesh(boxGeo, boxMat);
-        box.position.setFromMatrixPosition(reticle.matrix);
-        scene.add(box);
-      }
-    }
-
-    function onXRFrame(time, frame) {
-      if (!frame) return;
-
-      const viewerPose = frame.getViewerPose(refSpace);
-      if (!viewerPose) return;
-
-      const hitTestResults = frame.getHitTestResults(hitTestSource);
-      if (hitTestResults.length > 0) {
-        const hit = hitTestResults[0];
-        const pose = hit.getPose(refSpace);
-
-        if (pose) {
-          reticle.visible = true;
-          reticle.matrix.fromArray(pose.transform.matrix);
-        }
-      } else {
-        reticle.visible = false;
-      }
-
-      renderer.render(scene, camera);
-    }
+    window.addEventListener("resize", () => {
+      engine.resize();
+    });
   </script>
 </body>
 </html>
