@@ -54,7 +54,7 @@
           const forward = xrCamera.getDirection(BABYLON.Vector3.Forward()).scale(0.5); // 0.5 meters in front
           const position = xrCamera.position.add(forward);
 
-          BABYLON.SceneLoader.ImportMesh("", "", "./cat.glb", scene, function (meshes) {
+          BABYLON.SceneLoader.ImportMesh("", "", "cat.glb", scene, function (meshes) {
             const model = BABYLON.Mesh.MergeMeshes(meshes, true, true, undefined, false, true);
             if (model) {
               model.position = position.clone();
