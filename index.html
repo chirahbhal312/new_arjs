@@ -64,7 +64,7 @@
           const pose = results[0].transformationMatrix;
           const position = new BABYLON.Vector3(pose[12], pose[13], pose[14]);
 
-          BABYLON.SceneLoader.ImportMesh("", "", "yourModel.glb", scene, function (meshes) {
+          BABYLON.SceneLoader.ImportMesh("", "", "./cat.glb", scene, function (meshes) {
             const model = BABYLON.Mesh.MergeMeshes(meshes, true, true, undefined, false, true);
             if (model) {
               model.position = position.clone();
