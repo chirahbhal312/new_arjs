@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Babylon.js AR Cube Placer</title>
+  <title>Babylon.js AR Model Placer</title>
   <script src="https://cdn.babylonjs.com/babylon.js"></script>
   <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
   <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
@@ -10,28 +10,42 @@
   <style>
     html, body { margin: 0; overflow: hidden; height: 100%; }
     canvas { width: 100%; height: 100%; display: block; }
+    #enter-ar {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #0d6efd;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      z-index: 10;
+    }
   </style>
 </head>
 <body>
+  <button id="enter-ar">Enter AR</button>
   <canvas id="renderCanvas"></canvas>
+
   <script>
     const canvas = document.getElementById("renderCanvas");
     const engine = new BABYLON.Engine(canvas, true);
 
+    let xrHelper = null;
+
     const createScene = async () => {
       const scene = new BABYLON.Scene(engine);
-
+      const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
       const camera = new BABYLON.ArcRotateCamera("camera", Math.PI / 2, Math.PI / 4, 3, BABYLON.Vector3.Zero(), scene);
       camera.attachControl(canvas, true);
 
-      const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(1, 1, 0), scene);
-
-      // Enable WebXR
-      const xrHelper = await scene.createDefaultXRExperienceAsync({
-        uiOptions: {
-          sessionMode: "immersive-ar",
-        },
-        optionalFeatures: true,
+      // Set up XR but don't enter it yet
+      xrHelper = await scene.createDefaultXRExperienceAsync({
+        uiOptions: { sessionMode: "immersive-ar", referenceSpaceType: "local" },
+        optionalFeatures: true
       });
 
       const featuresManager = xrHelper.baseExperience.featuresManager;
@@ -40,29 +54,23 @@
         "latest",
         {
           offsetRay: new BABYLON.Ray(new BABYLON.Vector3(0, 0, 0), new BABYLON.Vector3(0, 0, -1), 10),
-          testOnPointerDownOnly: true,
+          testOnPointerDownOnly: true
         }
       );
 
-      let cubeMaterial = new BABYLON.StandardMaterial("cubeMat", scene);
-      cubeMaterial.diffuseColor = BABYLON.Color3.Red();
-
+      // On hit, load the model from same directory
       hitTest.onHitTestResultObservable.add((results) => {
-        if (results.length) {
-          const hit = results[0];
-          const pose = hit.transformationMatrix;
+        if (results.length > 0) {
+          const pose = results[0].transformationMatrix;
+          const position = new BABYLON.Vector3(pose[12], pose[13], pose[14]);
 
-          const position = new BABYLON.Vector3(pose[5], pose[53], pose[5]);
-
-BABYLON.SceneLoader.ImportMesh("", "", "./cat.glb", scene, function (meshes) {
-  const model = BABYLON.Mesh.MergeMeshes(meshes, true, true, undefined, false, true);
-  if (model) {
-    model.position = position.clone();
-    model.scaling = new BABYLON.Vector3(1, 1, 1); // Adjust scale if needed
-  }
-});
-
-
+          BABYLON.SceneLoader.ImportMesh("", "", "yourModel.glb", scene, function (meshes) {
+            const model = BABYLON.Mesh.MergeMeshes(meshes, true, true, undefined, false, true);
+            if (model) {
+              model.position = position.clone();
+              model.scaling = new BABYLON.Vector3(0.1, 0.1, 0.1); // Adjust to suit model size
+            }
+          });
         }
       });
 
@@ -73,11 +81,16 @@ BABYLON.SceneLoader.ImportMesh("", "", "./cat.glb", scene, function (meshes) {
       engine.runRenderLoop(() => {
         scene.render();
       });
+
+      // Button to enter AR
+      document.getElementById("enter-ar").addEventListener("click", () => {
+        if (xrHelper) {
+          xrHelper.baseExperience.enterXRAsync("immersive-ar", "unbounded", xrHelper.renderTarget);
+        }
+      });
     });
 
-    window.addEventListener("resize", () => {
-      engine.resize();
-    });
+    window.addEventListener("resize", () => engine.resize());
   </script>
 </body>
 </html>
