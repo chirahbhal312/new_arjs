@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Babylon.js AR Model Placer (Auto)</title>
+  <title>Minimal AR Scene</title>
   <script src="https://cdn.babylonjs.com/babylon.js"></script>
   <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
   <script src="https://cdn.babylonjs.com/xr/babylon.webxr.min.js"></script>
@@ -32,33 +32,36 @@
   <script>
     const canvas = document.getElementById("renderCanvas");
     const engine = new BABYLON.Engine(canvas, true);
-
-    let xrHelper = null;
+    let xrHelper;
 
     const createScene = async () => {
       const scene = new BABYLON.Scene(engine);
-      const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-      const camera = new BABYLON.ArcRotateCamera("camera", Math.PI / 2, Math.PI / 4, 3, BABYLON.Vector3.Zero(), scene);
-      camera.attachControl(canvas, true);
 
+      // Add a simple directional light (works well in AR)
+      const light = new BABYLON.DirectionalLight("dirLight", new BABYLON.Vector3(-1, -2, -1), scene);
+      light.intensity = 1.5;
+
+      // Create XR experience but do not start it yet
       xrHelper = await scene.createDefaultXRExperienceAsync({
-        uiOptions: { sessionMode: "immersive-ar", referenceSpaceType: "local" },
+        uiOptions: {
+          sessionMode: "immersive-ar",
+          referenceSpaceType: "local"
+        },
         optionalFeatures: true
       });
 
-      // Automatically place model after entering AR
+      // Place the model once in AR session
       xrHelper.baseExperience.onStateChangedObservable.add((state) => {
         if (state === BABYLON.WebXRState.IN_XR) {
-          // Load and place model in front of camera
           const xrCamera = xrHelper.baseExperience.camera;
-          const forward = xrCamera.getDirection(BABYLON.Vector3.Forward()).scale(0.5); // 0.5 meters in front
+          const forward = xrCamera.getDirection(BABYLON.Vector3.Forward()).scale(0.5);
           const position = xrCamera.position.add(forward);
 
           BABYLON.SceneLoader.ImportMesh("", "", "cat.glb", scene, function (meshes) {
             const model = BABYLON.Mesh.MergeMeshes(meshes, true, true, undefined, false, true);
             if (model) {
               model.position = position.clone();
-              model.scaling = new BABYLON.Vector3(0.1, 0.1, 0.1); // Adjust for your model
+              model.scaling = new BABYLON.Vector3(0.1, 0.1, 0.1); // Adjust scale as needed
             }
           });
         }
@@ -68,7 +71,9 @@
     };
 
     createScene().then((scene) => {
-      engine.runRenderLoop(() => scene.render());
+      engine.runRenderLoop(() => {
+        scene.render();
+      });
 
       document.getElementById("enter-ar").addEventListener("click", () => {
         if (xrHelper) {
