@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Three.js AR Model Placer (Auto)</title>
+  <title>Three.js AR Model Placer (Button Selection)</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/webxr/ARButton.js"></script>
@@ -23,10 +23,35 @@
       cursor: pointer;
       z-index: 10;
     }
+    #model-buttons {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 10;
+    }
+    .model-button {
+      background-color: #198754;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      font-size: 14px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .model-button:hover {
+      background-color: #157347;
+    }
   </style>
 </head>
 <body>
   <div id="enter-ar"></div>
+  <div id="model-buttons">
+    <button id="cat-button" class="model-button">Cat</button>
+    <button id="dog-button" class="model-button">Dog</button>
+  </div>
   <script>
     let scene, camera, renderer;
     let controller;
@@ -64,16 +89,16 @@
       // Handle window resize
       window.addEventListener('resize', onWindowResize);
       
-      // When XR session starts
-      renderer.xr.addEventListener('sessionstart', onSessionStart);
+      // Add event listeners to model buttons
+      document.getElementById('cat-button').addEventListener('click', placeCatModel);
+      document.getElementById('dog-button').addEventListener('click', placeDogModel);
     }
     
     function onSessionStart() {
-      // Place models automatically when AR session starts
-      placeModels();
+      // No automatic model placement
     }
     
-    function placeModels() {
+    function placeCatModel() {
       // Get camera position and direction
       const position = new THREE.Vector3();
       const direction = new THREE.Vector3();
@@ -85,22 +110,35 @@
       const distance = 0.5;
       const targetPosition = position.clone().add(direction.multiplyScalar(distance));
       
-      // Load first model (cat)
-      const loader1 = new THREE.GLTFLoader();
-      loader1.load('cat.glb', (gltf) => {
-        const model1 = gltf.scene;
-        model1.position.copy(targetPosition);
-        model1.scale.set(0.01, 0.01, 0.01);
-        scene.add(model1);
+      // Load cat model
+      const loader = new THREE.GLTFLoader();
+      loader.load('cat.glb', (gltf) => {
+        const model = gltf.scene;
+        model.position.copy(targetPosition);
+        model.scale.set(0.01, 0.01, 0.01);
+        scene.add(model);
       });
+    }
+    
+    function placeDogModel() {
+      // Get camera position and direction
+      const position = new THREE.Vector3();
+      const direction = new THREE.Vector3();
       
-      // Load second model (dog)
-      const loader2 = new THREE.GLTFLoader();
-      loader2.load('dog.glb', (gltf) => {
-        const model2 = gltf.scene;
-        model2.position.copy(targetPosition);
-        model2.scale.set(0.0001, 0.0001, 0.0001);
-        scene.add(model2);
+      camera.getWorldPosition(position);
+      camera.getWorldDirection(direction);
+      
+      // Calculate position in front of camera
+      const distance = 0.5;
+      const targetPosition = position.clone().add(direction.multiplyScalar(distance));
+      
+      // Load dog model
+      const loader = new THREE.GLTFLoader();
+      loader.load('dog.glb', (gltf) => {
+        const model = gltf.scene;
+        model.position.copy(targetPosition);
+        model.scale.set(0.0001, 0.0001, 0.0001);
+        scene.add(model);
       });
     }
     
