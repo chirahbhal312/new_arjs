@@ -2,10 +2,10 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Babylon.js AR Plane Placement</title>
-  <script src="https://cdn.babylonjs.com/babylon.js"></script>
-  <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
-  <script src="https://cdn.babylonjs.com/xr/babylon.webxr.min.js"></script>
+  <title>Three.js AR Model Placer (Auto)</title>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/webxr/ARButton.js"></script>
   <style>
     html, body { margin: 0; overflow: hidden; height: 100%; }
     canvas { width: 100%; height: 100%; display: block; }
@@ -26,82 +26,101 @@
   </style>
 </head>
 <body>
-  <button id="enter-ar">Enter AR</button>
-  <canvas id="renderCanvas"></canvas>
-
+  <div id="enter-ar"></div>
   <script>
-    const canvas = document.getElementById("renderCanvas");
-    const engine = new BABYLON.Engine(canvas, true);
-
-    let xrHelper = null;
-
-    const createScene = async () => {
-      const scene = new BABYLON.Scene(engine);
-      new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-      const camera = new BABYLON.ArcRotateCamera("camera", Math.PI / 2, Math.PI / 4, 3, BABYLON.Vector3.Zero(), scene);
-      camera.attachControl(canvas, true);
-
-      xrHelper = await scene.createDefaultXRExperienceAsync({
-        uiOptions: { sessionMode: "immersive-ar", referenceSpaceType: "local" },
-        optionalFeatures: ["hit-test", "plane-detection", "anchors"]
+    let scene, camera, renderer;
+    let controller;
+    
+    init();
+    animate();
+    
+    function init() {
+      // Create scene
+      scene = new THREE.Scene();
+      
+      // Create camera
+      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+      
+      // Create renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.xr.enabled = true;
+      document.body.appendChild(renderer.domElement);
+      
+      // Add AR button
+      document.getElementById('enter-ar').appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
+      
+      // Add light
+      const light = new THREE.HemisphericLight(0xffffff, 0xbbbbff, 1);
+      light.position.set(0.5, 1, 0.25);
+      scene.add(light);
+      
+      // Set up controller
+      controller = renderer.xr.getController(0);
+      controller.addEventListener('select', onSelect);
+      scene.add(controller);
+      
+      // Handle window resize
+      window.addEventListener('resize', onWindowResize);
+      
+      // When XR session starts
+      renderer.xr.addEventListener('sessionstart', onSessionStart);
+    }
+    
+    function onSessionStart() {
+      // Place models automatically when AR session starts
+      placeModels();
+    }
+    
+    function placeModels() {
+      // Get camera position and direction
+      const position = new THREE.Vector3();
+      const direction = new THREE.Vector3();
+      
+      camera.getWorldPosition(position);
+      camera.getWorldDirection(direction);
+      
+      // Calculate position in front of camera
+      const distance = 0.5;
+      const targetPosition = position.clone().add(direction.multiplyScalar(distance));
+      
+      // Load first model (cat)
+      const loader1 = new THREE.GLTFLoader();
+      loader1.load('cat.glb', (gltf) => {
+        const model1 = gltf.scene;
+        model1.position.copy(targetPosition);
+        model1.scale.set(0.01, 0.01, 0.01);
+        scene.add(model1);
       });
-
-      const featuresManager = xrHelper.baseExperience.featuresManager;
-
-      // Enable hit test
-      const hitTest = featuresManager.enableFeature(
-        BABYLON.WebXRFeatureName.HIT_TEST,
-        "latest",
-        {
-          offsetRay: new BABYLON.Ray(new BABYLON.Vector3(0, 0, 0), new BABYLON.Vector3(0, 0, -1)),
-          testOnPointerDownOnly: true
-        }
-      );
-
-      // Load models when hit result is found
-      hitTest.onHitTestResultObservable.add((results) => {
-        if (results.length) {
-          const hitPose = results[0].transformationMatrix;
-          const mat = BABYLON.Matrix.FromArray(hitPose);
-          const position = mat.getTranslation();
-
-          // Place first model
-          BABYLON.SceneLoader.ImportMesh("", "", "cat.glb", scene, function (meshes1) {
-            const model1 = BABYLON.Mesh.MergeMeshes(meshes1, true, true, undefined, false, true);
-            if (model1) {
-              model1.position = position.add(new BABYLON.Vector3(-0.1, 0, 0)); // left of center
-              model1.scaling = new BABYLON.Vector3(0.01, 0.01, 0.01);
-            }
-          });
-
-          // Place second model
-          BABYLON.SceneLoader.ImportMesh("", "", "dog.glb", scene, function (meshes2) {
-            const model2 = BABYLON.Mesh.MergeMeshes(meshes2, true, true, undefined, false, true);
-            if (model2) {
-              model2.position = position.add(new BABYLON.Vector3(0.1, 0, 0)); // right of center
-              model2.scaling = new BABYLON.Vector3(0.01, 0.01, 0.01);
-            }
-          });
-
-          // Disable further hit testing after placement
-          hitTest.disable();
-        }
+      
+      // Load second model (dog)
+      const loader2 = new THREE.GLTFLoader();
+      loader2.load('dog.glb', (gltf) => {
+        const model2 = gltf.scene;
+        model2.position.copy(targetPosition);
+        model2.scale.set(0.0001, 0.0001, 0.0001);
+        scene.add(model2);
       });
-
-      return scene;
-    };
-
-    createScene().then((scene) => {
-      engine.runRenderLoop(() => scene.render());
-
-      document.getElementById("enter-ar").addEventListener("click", () => {
-        if (xrHelper) {
-          xrHelper.baseExperience.enterXRAsync("immersive-ar", "unbounded", xrHelper.renderTarget);
-        }
-      });
-    });
-
-    window.addEventListener("resize", () => engine.resize());
+    }
+    
+    function onSelect() {
+      // Optional: Handle controller select event
+    }
+    
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    
+    function animate() {
+      renderer.setAnimationLoop(render);
+    }
+    
+    function render() {
+      renderer.render(scene, camera);
+    }
   </script>
 </body>
 </html>
