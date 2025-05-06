@@ -2,19 +2,38 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Three.js AR Model Placer (Auto)</title>
+  <title>Three.js AR Model Placer</title>
   <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/webxr/ARButton.js"></script>
   <style>
     html, body { margin: 0; overflow: hidden; height: 100%; }
     canvas { width: 100%; height: 100%; display: block; }
-    #enter-ar {
+    #ui-container {
       position: absolute;
       bottom: 20px;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      z-index: 10;
+    }
+    .model-button {
+      background-color: #0d6efd;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    #ar-button {
+      position: absolute;
+      bottom: 80px;
       left: 50%;
       transform: translateX(-50%);
-      background-color: #0d6efd;
+      background-color: #28a745;
       color: white;
       border: none;
       padding: 12px 20px;
@@ -26,10 +45,17 @@
   </style>
 </head>
 <body>
-  <div id="enter-ar"></div>
+  <div id="ar-button"></div>
+  <div id="ui-container">
+    <button class="model-button" id="cat-button">Place Cat</button>
+    <button class="model-button" id="dog-button">Place Dog</button>
+  </div>
+  
   <script>
     let scene, camera, renderer;
     let controller;
+    let arSession = false;
+    let currentModelType = null;
     
     init();
     animate();
@@ -49,7 +75,9 @@
       document.body.appendChild(renderer.domElement);
       
       // Add AR button
-      document.getElementById('enter-ar').appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
+      document.getElementById('ar-button').appendChild(ARButton.createButton(renderer, { 
+        requiredFeatures: ['hit-test'] 
+      }));
       
       // Add light
       const light = new THREE.HemisphericLight(0xffffff, 0xbbbbff, 1);
@@ -58,54 +86,66 @@
       
       // Set up controller
       controller = renderer.xr.getController(0);
-      controller.addEventListener('select', onSelect);
+      controller.addEventListener('select', placeModel);
       scene.add(controller);
+      
+      // Add event listeners for buttons
+      document.getElementById('cat-button').addEventListener('click', () => {
+        currentModelType = 'cat';
+      });
+      
+      document.getElementById('dog-button').addEventListener('click', () => {
+        currentModelType = 'dog';
+      });
       
       // Handle window resize
       window.addEventListener('resize', onWindowResize);
       
-      // When XR session starts
-      renderer.xr.addEventListener('sessionstart', onSessionStart);
+      // Track AR session state
+      renderer.xr.addEventListener('sessionstart', () => {
+        arSession = true;
+        document.getElementById('ui-container').style.display = 'flex';
+      });
+      
+      renderer.xr.addEventListener('sessionend', () => {
+        arSession = false;
+        document.getElementById('ui-container').style.display = 'none';
+      });
+      
+      // Initially hide model buttons
+      document.getElementById('ui-container').style.display = 'none';
     }
     
-    function onSessionStart() {
-      // Place models automatically when AR session starts
-      placeModels();
-    }
-    
-    function placeModels() {
-      // Get camera position and direction
+    function placeModel() {
+      if (!arSession || !currentModelType) return;
+      
+      // Get controller position and orientation
       const position = new THREE.Vector3();
       const direction = new THREE.Vector3();
       
-      camera.getWorldPosition(position);
-      camera.getWorldDirection(direction);
+      controller.getWorldPosition(position);
+      controller.getWorldDirection(direction);
       
-      // Calculate position in front of camera
-      const distance = 0.5;
+      // Calculate position in front of controller
+      const distance = 0.3;
       const targetPosition = position.clone().add(direction.multiplyScalar(distance));
       
-      // Load first model (cat)
-      const loader1 = new THREE.GLTFLoader();
-      loader1.load('cat.glb', (gltf) => {
-        const model1 = gltf.scene;
-        model1.position.copy(targetPosition);
-        model1.scale.set(0.01, 0.01, 0.01);
-        scene.add(model1);
-      });
+      // Load the selected model
+      const loader = new THREE.GLTFLoader();
+      const modelUrl = currentModelType === 'cat' ? 'cat.glb' : 'dog.glb';
+      const scale = currentModelType === 'cat' ? 0.01 : 0.0001;
       
-      // Load second model (dog)
-      const loader2 = new THREE.GLTFLoader();
-      loader2.load('dog.glb', (gltf) => {
-        const model2 = gltf.scene;
-        model2.position.copy(targetPosition);
-        model2.scale.set(0.0001, 0.0001, 0.0001);
-        scene.add(model2);
+      loader.load(modelUrl, (gltf) => {
+        const model = gltf.scene;
+        model.position.copy(targetPosition);
+        model.scale.set(scale, scale, scale);
+        
+        // Make model face the camera
+        model.lookAt(camera.position);
+        model.rotation.x = 0; // Keep upright
+        
+        scene.add(model);
       });
-    }
-    
-    function onSelect() {
-      // Optional: Handle controller select event
     }
     
     function onWindowResize() {
