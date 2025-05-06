@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Babylon.js AR Model Placer (Auto)</title>
+  <title>Babylon.js AR Model Placer (Interactive)</title>
   <script src="https://cdn.babylonjs.com/babylon.js"></script>
   <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
   <script src="https://cdn.babylonjs.com/xr/babylon.webxr.min.js"></script>
@@ -34,6 +34,7 @@
     const engine = new BABYLON.Engine(canvas, true);
 
     let xrHelper = null;
+    let model = null;
 
     const createScene = async () => {
       const scene = new BABYLON.Scene(engine);
@@ -49,18 +50,27 @@
       // Automatically place model after entering AR
       xrHelper.baseExperience.onStateChangedObservable.add((state) => {
         if (state === BABYLON.WebXRState.IN_XR) {
-          // Load and place model in front of camera
           const xrCamera = xrHelper.baseExperience.camera;
-          const forward = xrCamera.getDirection(BABYLON.Vector3.Forward()).scale(0.5); // 0.5 meters in front
+          const forward = xrCamera.getDirection(BABYLON.Vector3.Forward()).scale(0.5);
           const position = xrCamera.position.add(forward);
 
           BABYLON.SceneLoader.ImportMesh("", "", "cat.glb", scene, function (meshes) {
-            const model = BABYLON.Mesh.MergeMeshes(meshes, true, true, undefined, false, true);
+            model = BABYLON.Mesh.MergeMeshes(meshes, true, true, undefined, false, true);
             if (model) {
               model.position = position.clone();
-              model.scaling = new BABYLON.Vector3(0.1, 0.1, 0.1); // Adjust for your model
+              model.scaling = new BABYLON.Vector3(0.1, 0.1, 0.1);
             }
           });
+        }
+      });
+
+      // Add interactivity: tap to rotate model
+      scene.onPointerObservable.add((pointerInfo) => {
+        if (pointerInfo.type === BABYLON.PointerEventTypes.POINTERDOWN && model) {
+          const pickResult = scene.pick(pointerInfo.event.clientX, pointerInfo.event.clientY);
+          if (pickResult.hit && pickResult.pickedMesh && model.getChildMeshes().includes(pickResult.pickedMesh)) {
+            model.rotation.y += BABYLON.Tools.ToRadians(45);
+          }
         }
       });
 
