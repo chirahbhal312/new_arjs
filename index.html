@@ -9,7 +9,7 @@
   <style>
     html, body { margin: 0; overflow: hidden; height: 100%; }
     canvas { width: 100%; height: 100%; display: block; }
-    #enter-ar {
+    #start-ar-button {
       position: absolute;
       bottom: 20px;
       left: 50%;
@@ -31,6 +31,8 @@
       display: flex;
       gap: 10px;
       z-index: 10;
+      opacity: 0; /* Hidden initially */
+      transition: opacity 0.3s ease;
     }
     .model-button {
       background-color: #198754;
@@ -44,17 +46,35 @@
     .model-button:hover {
       background-color: #157347;
     }
+    #ar-not-supported {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: rgba(220, 53, 69, 0.9);
+      color: white;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+      max-width: 80%;
+      display: none;
+    }
   </style>
 </head>
 <body>
-  <div id="enter-ar"></div>
+  <button id="start-ar-button">Start AR Experience</button>
   <div id="model-buttons">
     <button id="cat-button" class="model-button">Cat</button>
     <button id="dog-button" class="model-button">Dog</button>
   </div>
+  <div id="ar-not-supported">
+    <h2>WebXR AR Not Supported</h2>
+    <p>Your device or browser does not support WebXR Augmented Reality. Please try on a compatible device with a supported browser.</p>
+  </div>
   <script>
     let scene, camera, renderer;
     let controller;
+    let arSession = null;
     
     init();
     animate();
@@ -73,9 +93,6 @@
       renderer.xr.enabled = true;
       document.body.appendChild(renderer.domElement);
       
-      // Add AR button
-      document.getElementById('enter-ar').appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
-      
       // Add light
       const light = new THREE.HemisphericLight(0xffffff, 0xbbbbff, 1);
       light.position.set(0.5, 1, 0.25);
@@ -92,13 +109,55 @@
       // Add event listeners to model buttons
       document.getElementById('cat-button').addEventListener('click', placeCatModel);
       document.getElementById('dog-button').addEventListener('click', placeDogModel);
+      
+      // Add event listener to start AR button
+      document.getElementById('start-ar-button').addEventListener('click', startARSession);
     }
     
-    function onSessionStart() {
-      // No automatic model placement
+    function startARSession() {
+      // Check if AR is supported
+      if ('xr' in navigator) {
+        navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+          if (supported) {
+            navigator.xr.requestSession('immersive-ar', {
+              requiredFeatures: ['hit-test']
+            }).then(onSessionStarted);
+          } else {
+            showARNotSupported();
+          }
+        });
+      } else {
+        showARNotSupported();
+      }
+    }
+    
+    function showARNotSupported() {
+      document.getElementById('ar-not-supported').style.display = 'block';
+      document.getElementById('start-ar-button').style.display = 'none';
+    }
+    
+    function onSessionStarted(session) {
+      arSession = session;
+      renderer.xr.setSession(session);
+      
+      // Show model buttons when AR session starts
+      document.getElementById('model-buttons').style.opacity = '1';
+      document.getElementById('start-ar-button').style.display = 'none';
+      
+      // Add session end event listener
+      session.addEventListener('end', onSessionEnded);
+    }
+    
+    function onSessionEnded() {
+      arSession = null;
+      // Hide model buttons when AR session ends
+      document.getElementById('model-buttons').style.opacity = '0';
+      document.getElementById('start-ar-button').style.display = 'block';
     }
     
     function placeCatModel() {
+      if (!arSession) return;
+      
       // Get camera position and direction
       const position = new THREE.Vector3();
       const direction = new THREE.Vector3();
@@ -121,6 +180,8 @@
     }
     
     function placeDogModel() {
+      if (!arSession) return;
+      
       // Get camera position and direction
       const position = new THREE.Vector3();
       const direction = new THREE.Vector3();
