@@ -65,8 +65,8 @@
           BABYLON.SceneLoader.ImportMesh("", "", "dog.glb", scene, function (meshes2) {
             const model2 = BABYLON.Mesh.MergeMeshes(meshes2, true, true, undefined, false, true);
             if (model2) {
-              model2.position = centerPos.add(new BABYLON.Vector3(0.15, 0, 0)); // to the right
-              model2.scaling = new BABYLON.Vector3(0.01, 0.01, 0.01); // same size
+              model2.position = centerPos.add(new BABYLON.Vector3(1, 0, 0)); // to the right
+              model2.scaling = new BABYLON.Vector3(0.001, 0.001, 0.001); // same size
             }
           });
         }
